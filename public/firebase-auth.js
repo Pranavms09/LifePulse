@@ -203,7 +203,9 @@ if (logoutBtn) {
   logoutBtn.addEventListener("click", async () => {
     try {
       await signOut(auth);
+      const hasVisited = localStorage.getItem("hasVisitedLifepulse");
       localStorage.clear(); // Clear all cached data
+      if (hasVisited) localStorage.setItem("hasVisitedLifepulse", hasVisited);
       window.location.href = "index.html";
     } catch (error) {
       console.error("Logout Error:", error);
@@ -214,6 +216,9 @@ if (logoutBtn) {
 window.firebaseLogout = async () => {
   try {
     await signOut(auth);
+    const hasVisited = localStorage.getItem("hasVisitedLifepulse");
+    localStorage.clear();
+    if (hasVisited) localStorage.setItem("hasVisitedLifepulse", hasVisited);
     window.location.href = "index.html";
   } catch (error) {
     console.error("Firebase Logout Error:", error);
@@ -458,6 +463,20 @@ onAuthStateChanged(auth, async (user) => {
     }
   } else {
     console.log("No User - Guest Mode");
+
+    // Auto-login as Demo for first-time visitors
+    if (!localStorage.getItem("hasVisitedLifepulse")) {
+      console.log("First time visitor detected. Auto-logging into Demo Mode...");
+      localStorage.setItem("hasVisitedLifepulse", "true");
+      
+      // Delay click slightly to ensure DOM bindings are ready
+      setTimeout(() => {
+        const demoBtn = document.getElementById("demo-login");
+        if (demoBtn) demoBtn.click();
+      }, 500);
+      return;
+    }
+
     window.isLoggedIn = false;
     
     const demoBanner = document.getElementById("demo-banner");
