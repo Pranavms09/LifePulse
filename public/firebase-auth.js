@@ -84,6 +84,58 @@ if (googleLoginBtn) {
   });
 }
 
+// Demo Login
+const demoLoginBtn = document.getElementById("demo-login");
+if (demoLoginBtn) {
+  demoLoginBtn.addEventListener("click", async () => {
+    const demoEmail = "demo@lifepurse.com";
+    const demoPassword = "demo123";
+    
+    // Set flag in localStorage for UI updates
+    localStorage.setItem("isDemoUser", "true");
+    
+    // Show a loading state on the button
+    const originalText = demoLoginBtn.innerHTML;
+    demoLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-purple-500 mr-2"></i> Logging in...';
+    demoLoginBtn.disabled = true;
+
+    try {
+      await signInWithEmailAndPassword(auth, demoEmail, demoPassword);
+    } catch (error) {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        try {
+          // If demo account doesn't exist, create it and seed basic data
+          const result = await createUserWithEmailAndPassword(auth, demoEmail, demoPassword);
+          const user = result.user;
+          await setDoc(doc(db, "users", user.uid), {
+            displayName: "Demo User",
+            email: demoEmail,
+            age: "30",
+            gender: "Female",
+            bloodGroup: "O+",
+            mobile: "9876543210",
+            height: "165",
+            weight: "60",
+            profileCompleted: true,
+            isDemo: true,
+            createdAt: new Date().toISOString()
+          });
+        } catch (createError) {
+          console.error("Failed to create demo account:", createError);
+          alert("Demo login failed during setup.");
+        }
+      } else {
+        console.error("Demo Login Error:", error);
+        alert("Demo login failed: " + error.message);
+      }
+    } finally {
+      // Reset button state
+      demoLoginBtn.innerHTML = originalText;
+      demoLoginBtn.disabled = false;
+    }
+  });
+}
+
 // Manual Sign Up
 if (manualSignUpBtn) {
   manualSignUpBtn.addEventListener("click", async () => {
@@ -396,9 +448,20 @@ onAuthStateChanged(auth, async (user) => {
     if (viewAllergies) viewAllergies.textContent = userData.allergies || "";
     if (viewMedications)
       viewMedications.textContent = userData.medications || "";
+
+    // Demo Mode Banner
+    const isDemo = userData.email === "demo@lifepurse.com" || localStorage.getItem("isDemoUser") === "true";
+    const demoBanner = document.getElementById("demo-banner");
+    if (demoBanner) {
+      if (isDemo) demoBanner.classList.remove("hidden");
+      else demoBanner.classList.add("hidden");
+    }
   } else {
     console.log("No User - Guest Mode");
     window.isLoggedIn = false;
+    
+    const demoBanner = document.getElementById("demo-banner");
+    if (demoBanner) demoBanner.classList.add("hidden");
     window.isProfileComplete = false;
     window.hideAuthGate();
     if (logoutBtn) logoutBtn.style.display = "none";
