@@ -1,4 +1,5 @@
-const Groq = require("groq-sdk");
+require("dotenv").config();
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 module.exports = async function handler(req, res) {
   // Enable CORS
@@ -35,16 +36,16 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    if (!process.env.GROQ_API_KEY) {
-      return res.status(500).json({ error: "API Key missing" });
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("GEMINI_API_KEY is not set");
+      return res.status(500).json({ error: "Server misconfiguration: API Key missing" });
     }
 
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    // Initialize Gemini API
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // ---- Build the system prompt ----
-    // The expert persona is always included. The patient context (pregnancy week,
-    // health logs, profile) is prepended when available so Gemini can reason
-    // from real data instead of giving generic advice.
     const basePersona =
       systemPrompt ||
       `You are Sanjeevani, a specialized AI Pregnancy Expert for LifePulse.
@@ -64,7 +65,7 @@ PERSONA: You are empathetic, medically accurate, and culturally relevant to preg
 
     const fullSystemPrompt = `${contextBlock}${basePersona}`;
 
-    let result;
+    let text;
 
     if (attachedFile && attachedFile.base64 && attachedFile.mimeType) {
       // ---- MULTIMODAL PATH: Report file + Text ----
@@ -73,45 +74,41 @@ PERSONA: You are empathetic, medically accurate, and culturally relevant to preg
           ? "The user has attached a medical report PDF. Carefully read ALL values in the report. Identify any abnormal results, especially those related to pregnancy (haemoglobin, blood pressure, blood glucose, thyroid, vitamins). Cross-reference with the patient context above and provide specific, actionable recommendations."
           : "The user has attached a medical report image. Carefully read ALL visible values in this image. Identify any abnormal or unusual results related to pregnancy. Cross-reference with the patient context above and provide specific, actionable recommendations.";
 
-      result = await groq.chat.completions.create({
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `${fullSystemPrompt}\n\n${fileInstruction}\n\nUser Question: ${message}\nResponse Language: ${language}`,
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${attachedFile.mimeType};base64,${attachedFile.base64}`,
-                },
-              },
-            ],
+      const prompt = `${fullSystemPrompt}\n\n${fileInstruction}\n\nUser Question: ${message}\nResponse Language: ${language}`;
+
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: attachedFile.base64,
+            mimeType: attachedFile.mimeType,
           },
-        ],
-        model: "llama-3.2-11b-vision-preview",
-        temperature: 0.7,
-        max_tokens: 8192,
-      });
+        },
+      ]);
+      const response = await result.response;
+      text = response.text();
     } else {
       // ---- TEXT-ONLY PATH ----
       const prompt = `${fullSystemPrompt}\n\nUser Question: ${message}\nResponse Language: ${language}`;
-      result = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: "llama-3.3-70b-versatile",
-        temperature: 0.7,
-        max_tokens: 8192,
-      });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      text = response.text();
     }
 
-    const text = result.choices[0]?.message?.content || "";
     const cleanText = text.replace(/\*\*/g, ""); // Remove bolding for TTS
-
     return res.status(200).json({ reply: cleanText });
   } catch (error) {
     console.error("Pregnancy AI Backend Error:", error);
+
+    if (
+      error.message?.includes("quota") ||
+      error.message?.includes("429") ||
+      error.message?.includes("RESOURCE_EXHAUSTED") ||
+      error.status === 429
+    ) {
+      return res.status(429).json({ error: "API quota exceeded. Please wait a moment and try again." });
+    }
+
     return res
       .status(500)
       .json({ error: "Failed to process request", details: error.message });

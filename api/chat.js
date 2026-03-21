@@ -1,4 +1,5 @@
-const Groq = require("groq-sdk");
+require("dotenv").config();
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const SYSTEM_PROMPT = `You are Dr. Sanjeevani, a friendly and intelligent AI Health Assistant for the LifePulse platform.
 
@@ -64,8 +65,8 @@ module.exports = async function handler(req, res) {
     }
 
     // Validate API Key
-    if (!process.env.GROQ_API_KEY) {
-      console.error("GROQ_API_KEY is not set");
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("GEMINI_API_KEY is not set");
       return res
         .status(500)
         .json({ error: "Server misconfiguration: API Key missing" });
@@ -86,69 +87,23 @@ module.exports = async function handler(req, res) {
         ? `IMPORTANT: Respond in ${languageNames[language] || language}. Use the native script and maintain the same bullet-point format.\n\n`
         : "";
 
-    // Initialize Groq API
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    // Initialize Gemini API
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: SYSTEM_PROMPT,
+    });
+
     const fullMessage = langInstruction + message;
 
-    let result;
-    const messages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "assistant",
-        content:
-          "Namaste! I am Dr. Sanjeevani. How can I assist you with your health today?",
-      },
-      { role: "user", content: fullMessage },
-    ];
+    const result = await model.generateContent(fullMessage);
+    const response = await result.response;
+    let text = response.text();
+    text = text.replace(/\*\*/g, ""); // Remove bolding for TTS
 
-    try {
-      result = await groq.chat.completions.create({
-        messages,
-        model: "llama-3.3-70b-versatile",
-        temperature: 0.7,
-        top_p: 0.95,
-        max_tokens: 8192,
-      });
-    } catch (retryError) {
-      const isRateLimit =
-        retryError.message?.includes("429") ||
-        retryError.message?.includes("quota") ||
-        retryError.message?.includes("rate limit") ||
-        retryError.status === 429;
-      if (isRateLimit) {
-        await new Promise((r) => setTimeout(r, 2000));
-        result = await groq.chat.completions.create({
-          messages,
-          model: "llama-3.3-70b-versatile",
-          temperature: 0.7,
-          top_p: 0.95,
-          max_tokens: 8192,
-        });
-      } else {
-        throw retryError;
-      }
-    }
-    const text = result.choices[0]?.message?.content || "";
-    const cleanText = text.replace(/\*\*/g, ""); // Remove bolding for TTS
-
-    return res.status(200).json({ reply: cleanText });
+    return res.status(200).json({ reply: text });
   } catch (error) {
-    console.error("Error in Vercel chat function:", error);
-
-    // Handle specific API errors
-    if (error.message?.includes("404")) {
-      return res.status(500).json({
-        error:
-          "AI Model not found. The API Key provided does not have access to Groq API.",
-      });
-    }
-
-    if (error.message?.includes("API key")) {
-      return res.status(500).json({
-        error:
-          "Invalid API Key. Please check your Vercel Environment Variables.",
-      });
-    }
+    console.error("Error in Gemini chat function:", error);
 
     if (
       error.message?.includes("quota") ||
@@ -159,6 +114,12 @@ module.exports = async function handler(req, res) {
       return res
         .status(429)
         .json({ error: "Service is busy. Please try again in a moment." });
+    }
+
+    if (error.message?.includes("API key")) {
+      return res.status(500).json({
+        error: "Invalid API Key. Please check your Vercel Environment Variables.",
+      });
     }
 
     return res
