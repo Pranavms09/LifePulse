@@ -11,6 +11,7 @@ let lastKnownLocation = null; // Stores {lat, lng, timestamp}
 let isListening = false; // Tracks if voice recognition is active
 let isIntentionalStop = false; // Tracks if stop was triggered by user
 let isProfileComplete = true; // Default to true, updated by auth observer
+let autoReadEnabled = true; // Auto-read AI responses aloud (toggleable)
 
 // --- Pregnancy Conditional Logic ---
 function updatePregnancyVisibility() {
@@ -868,6 +869,25 @@ function speakResponse(element) {
     });
   } else {
     performSpeak();
+  }
+}
+
+function toggleAutoRead() {
+  autoReadEnabled = !autoReadEnabled;
+  const btn = document.getElementById("auto-read-btn");
+  const icon = document.getElementById("auto-read-icon");
+  const label = document.getElementById("auto-read-label");
+  if (autoReadEnabled) {
+    btn.classList.remove("opacity-50");
+    icon.className = "fas fa-volume-up text-sm";
+    label.textContent = "ON";
+    // Stop any current speech if turning off → on (no action needed)
+  } else {
+    btn.classList.add("opacity-50");
+    icon.className = "fas fa-volume-mute text-sm";
+    label.textContent = "OFF";
+    // Stop any currently speaking response
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   }
 }
 
@@ -2901,8 +2921,8 @@ async function handleAiRequest() {
       const reply = data.reply || data.response;
       addMessageToChat("ai", reply);
 
-      // Auto-speak AI response
-      if (typeof speakResponse === "function") {
+      // Auto-speak AI response (only when auto-read is ON)
+      if (autoReadEnabled && typeof speakResponse === "function") {
         speakResponse(reply);
       }
     } else {
@@ -2919,8 +2939,8 @@ async function handleAiRequest() {
           const reply = result.response;
           addMessageToChat("ai", reply);
 
-          // Auto-speak AI response
-          if (typeof speakResponse === "function") {
+          // Auto-speak AI response (only when auto-read is ON)
+          if (autoReadEnabled && typeof speakResponse === "function") {
             speakResponse(reply);
           }
         } else {

@@ -797,6 +797,13 @@
                             <option value="bn" class="text-gray-800">বাংলা</option>
                             <option value="mr" class="text-gray-800">मराठी</option>
                         </select>
+                        <!-- Auto-Read Toggle -->
+                        <button id="auto-read-btn" onclick="toggleAutoRead()"
+                            class="flex items-center gap-1.5 px-3 h-10 bg-white/20 rounded-full hover:bg-white/30 transition text-sm font-semibold"
+                            title="Toggle Auto-Read">
+                            <i id="auto-read-icon" class="fas fa-volume-up text-sm"></i>
+                            <span id="auto-read-label">ON</span>
+                        </button>
                         <button onclick="toggleVoiceInput()"
                             class="w-10 h-10 bg-white/20 rounded-full hover:bg-white/30 transition flex items-center justify-center"
                             title="Voice Mode">

@@ -88,8 +88,8 @@ if (googleLoginBtn) {
 const demoLoginBtn = document.getElementById("demo-login");
 if (demoLoginBtn) {
   demoLoginBtn.addEventListener("click", async () => {
-    const demoEmail = "demo@lifepurse.com";
-    const demoPassword = "demo123";
+    const demoEmail = "demo_v2@lifepulse.com";
+    const demoPassword = "demo12345";
     
     // Set flag in localStorage for UI updates
     localStorage.setItem("isDemoUser", "true");
@@ -122,7 +122,7 @@ if (demoLoginBtn) {
           });
         } catch (createError) {
           console.error("Failed to create demo account:", createError);
-          alert("Demo login failed during setup.");
+          alert("Demo login failed during setup: " + createError.message);
         }
       } else {
         console.error("Demo Login Error:", error);
@@ -455,7 +455,7 @@ onAuthStateChanged(auth, async (user) => {
       viewMedications.textContent = userData.medications || "";
 
     // Demo Mode Banner
-    const isDemo = userData.email === "demo@lifepurse.com" || localStorage.getItem("isDemoUser") === "true";
+    const isDemo = userData.email === "demo_v2@lifepulse.com" || localStorage.getItem("isDemoUser") === "true";
     const demoBanner = document.getElementById("demo-banner");
     if (demoBanner) {
       if (isDemo) demoBanner.classList.remove("hidden");
