@@ -58,7 +58,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { message, language = "en", history = [] } = req.body || {};
+    const { message, language = "en" } = req.body || {};
 
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
@@ -90,21 +90,13 @@ module.exports = async function handler(req, res) {
     // Initialize Gemini API
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       systemInstruction: SYSTEM_PROMPT,
     });
 
     const fullMessage = langInstruction + message;
 
-    const geminiHistory = history
-      .slice(0, -1)
-      .map(h => ({
-        role: h.role === "assistant" ? "model" : "user",
-        parts: [{ text: h.content }]
-      }));
-
-    const chat = model.startChat({ history: geminiHistory });
-    const result = await chat.sendMessage(fullMessage);
+    const result = await model.generateContent(fullMessage);
     const response = await result.response;
     let text = response.text();
     text = text.replace(/\*\*/g, ""); // Remove bolding for TTS
