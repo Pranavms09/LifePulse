@@ -394,7 +394,7 @@ function addMessageToChat(sender, message) {
                 <div class="bg-white rounded-2xl rounded-tl-none p-4 shadow-md max-w-[90%] ai-reply-content">
                     ${formattedMessage}
                 </div>
-                <button onclick="speakResponse(this.previousElementSibling)" class="text-xs font-bold text-purple-600 flex items-center gap-1 hover:text-purple-700 transition px-2 py-1 bg-purple-50 rounded-lg w-fit">
+                <button onclick="speakResponse(this.previousElementSibling.innerText)" class="text-xs font-bold text-purple-600 flex items-center gap-1 hover:text-purple-700 transition px-2 py-1 bg-purple-50 rounded-lg w-fit">
                     <i class="fas fa-volume-up"></i> Listen to Sanjeevani
                 </button>
             </div>
@@ -545,6 +545,7 @@ function heroChat(input) {
 }
 
 function clearChat() {
+  chatHistory = []; // Reset history on chat clear
   const container = document.getElementById("ai-response-area");
   if (container) {
     container.innerHTML = `
@@ -763,26 +764,20 @@ function stopVoiceAssistant() {
   if (statusInd) statusInd.classList.add("hidden");
 }
 
-function speakResponse(element) {
-  if (!("speechSynthesis" in window)) {
-    showNotification("Speech synthesis is not supported.", "error");
-    return;
-  }
-
-  // Stop any current speaking
-  window.speechSynthesis.cancel();
-
-  // Handle both string and element input
-  let text = "";
-  if (typeof element === "string") {
-    text = element.replace(/<[^>]*>/g, "");
-  } else if (element && (element.innerText || element.textContent)) {
-    text = element.innerText || element.textContent;
-  }
+function speakResponse(input) {
+  // Safely handle both a string and a DOM element
+  const text = typeof input === "string" ? input.trim() : input?.innerText?.trim();
 
   if (!text) return;
 
-  const performSpeak = () => {
+  if (!("speechSynthesis" in window)) {
+    showNotification("Text-to-speech is not supported in this browser.", "error");
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+
+  function performSpeak() {
     const utterance = new SpeechSynthesisUtterance(text);
 
     // Map our language codes to speech synthesis locales
@@ -860,7 +855,7 @@ function speakResponse(element) {
     utterance.rate = 0.95; // Slightly slower for clarity
 
     window.speechSynthesis.speak(utterance);
-  };
+  }
 
   // If voices are empty, wait for them to load
   if (window.speechSynthesis.getVoices().length === 0) {
@@ -2890,6 +2885,7 @@ async function handleAiRequest() {
   // Clear input and show user message
   aiPromptInput.value = "";
   addMessageToChat("user", prompt);
+  chatHistory.push({ role: "user", content: prompt });
 
   // Show typing indicator
   showTypingIndicator();
@@ -2908,7 +2904,7 @@ async function handleAiRequest() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: prompt, language: aiLanguage }),
+        body: JSON.stringify({ message: prompt, language: aiLanguage, history: chatHistory }),
       });
 
       if (!response.ok) {
@@ -2918,8 +2914,16 @@ async function handleAiRequest() {
 
       const data = await response.json();
       removeTypingIndicator();
-      const reply = data.reply || data.response;
+      const reply =
+        data.reply ||
+        data.response ||
+        "Sorry, I could not generate a response. Please try again.";
       addMessageToChat("ai", reply);
+
+      chatHistory.push({ role: "assistant", content: reply });
+      if (chatHistory.length > 20) {
+        chatHistory = chatHistory.slice(-20);
+      }
 
       // Auto-speak AI response (only when auto-read is ON)
       if (autoReadEnabled && typeof speakResponse === "function") {

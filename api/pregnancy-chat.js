@@ -43,7 +43,6 @@ module.exports = async function handler(req, res) {
 
     // Initialize Gemini API
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // ---- Build the system prompt ----
     const basePersona =
@@ -65,6 +64,11 @@ PERSONA: You are empathetic, medically accurate, and culturally relevant to preg
 
     const fullSystemPrompt = `${contextBlock}${basePersona}`;
 
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: fullSystemPrompt
+    });
+
     let text;
 
     if (attachedFile && attachedFile.base64 && attachedFile.mimeType) {
@@ -74,7 +78,7 @@ PERSONA: You are empathetic, medically accurate, and culturally relevant to preg
           ? "The user has attached a medical report PDF. Carefully read ALL values in the report. Identify any abnormal results, especially those related to pregnancy (haemoglobin, blood pressure, blood glucose, thyroid, vitamins). Cross-reference with the patient context above and provide specific, actionable recommendations."
           : "The user has attached a medical report image. Carefully read ALL visible values in this image. Identify any abnormal or unusual results related to pregnancy. Cross-reference with the patient context above and provide specific, actionable recommendations.";
 
-      const prompt = `${fullSystemPrompt}\n\n${fileInstruction}\n\nUser Question: ${message}\nResponse Language: ${language}`;
+      const prompt = `${fileInstruction}\n\nUser Question: ${message}\nResponse Language: ${language}`;
 
       const result = await model.generateContent([
         prompt,
@@ -89,7 +93,7 @@ PERSONA: You are empathetic, medically accurate, and culturally relevant to preg
       text = response.text();
     } else {
       // ---- TEXT-ONLY PATH ----
-      const prompt = `${fullSystemPrompt}\n\nUser Question: ${message}\nResponse Language: ${language}`;
+      const prompt = `User Question: ${message}\nResponse Language: ${language}`;
       const result = await model.generateContent(prompt);
       const response = await result.response;
       text = response.text();
